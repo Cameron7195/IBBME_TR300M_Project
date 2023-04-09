@@ -1,0 +1,15 @@
+Final validation stats:
+Sample Level:
+pearson_r = 0.06961925, log_pearson_r = 0.53098035, spearman_r = 0.56607425, r2 = -0.008613944, lr2 = 0.15860307, acc = 0.7384491
+
+Aggregated:
+pearson_r = 0.0831839, log_pearson_r = 0.5289294, spearman_r = 0.55614984, r2 = -0.009580731, lr2 = 0.14514166, acc = 0.7351722
+
+Epochs: 10 x 10,000 steps @ 128 batch size, 0.3s per batch
+Time to train ~30,000 seconds
+
+Hyper parameters:
+dropout=0.2
+d_model=128
+
+# Test began at 5:03PM, MAR 7

@@ -1,0 +1,180 @@
+class FactorByDiffusion(layers.Layer):
+  def __init__(self):
+      super(FactorByDiffusion, self).__init__()
+
+  def build(self, input_shape):  # Create the state of the layer (weights)
+    b_init = tf.keras.initializers.constant(value=0)
+    r_init = tf.keras.initializers.constant(value=0)
+
+    self.w = tf.Variable(
+        name='fbd_b',
+        initial_value=b_init(shape=(),
+                             dtype='float32'),
+        trainable=True)
+    self.r = tf.Variable(
+        name='fbd_r',
+        initial_value=r_init(shape=(), dtype='float32'),
+        trainable=True)
+    
+  def call(self, tfLevels, chr, tss):  # Defines the computation from inputs to outputs
+    global tfChrArr, tfTssArr
+    sameChrSelect = tf.einsum('bc, tc->bt', chr[:, :, 0], tf.squeeze(tf.cast(tfChrArr, dtype=tf.float32)))
+    x = tf.abs(tss - tf.cast(tfTssArr, dtype=tf.float32))
+ 
+    e_r = tf.exp(self.r)
+    # tf.print(x.sahpe)
+    slideFactor = tf.exp(-e_r*x)
+
+    slidingComponent = sameChrSelect * tf.transpose(slideFactor)
+    # tf.print(slidingComponent.shape)
+    diffusionFactors = slidingComponent + tf.exp(self.w)
+    # tf.print(diffusionFactors.shape)
+    out = tfLevels[:, :, 0] * diffusionFactors
+    # tf.print(out.shape)
+    tf.debugging.assert_all_finite(self.r, "r went too big")
+    tf.debugging.assert_all_finite(self.w, "w went too big")
+    tf.debugging.assert_all_finite(x, "x went too big :()")
+    tf.debugging.assert_all_finite(out, "out went too big")
+
+    return out
+
+class ScaleAndBiasLayer(tf.keras.layers.Layer):
+    def __init__(self, bias_on=True, *args, **kwargs):
+        self.bias_on = bias_on
+        super(ScaleAndBiasLayer, self).__init__(*args, **kwargs)
+
+    def build(self, input_shape):
+        if self.bias_on:
+            self.bias = self.add_weight('bias',
+                                        shape=input_shape[-1],
+                                        initializer='zeros',
+                                        trainable=True)
+        self.gamma = self.add_weight('gamma',
+                                    shape=input_shape[-1],
+                                    initializer='ones',
+                                    trainable=True)
+    def call(self, x):
+        if self.bias_on:
+            return x * self.gamma + self.bias
+        else:
+            return x * self.gamma
+
+
+def dropoutFix(x):
+    # tf.print(x)
+    norm_x = x/tf.reduce_max(x)
+    # tf.print(norm_x)
+
+    rowwiseSum = tf.reduce_sum(norm_x, axis=2, keepdims=True)
+    out = (norm_x + 0.25) - 0.25 * rowwiseSum
+    # tf.print(out)
+    return out
+
+# Set hyperparameters
+dropout=0.2
+d_model=128
+num_heads=2
+num_layers=4
+
+input_cres = layers.Input(shape=(2823, 1))
+input_acgt = layers.Input(shape=(2823, 4))
+input_chr = layers.Input(shape=(24, 1))
+input_tss = layers.Input(shape=())
+input_tflevels = layers.Input(shape=(2753, 1))
+input_celltype = layers.Input(shape=(54, 1))
+input_hm = layers.Input(shape=(2823, 3, 7))
+
+dropout_acgt = layers.Dropout(0.1)(input_acgt)
+dropout_acgt = layers.Lambda(lambda x: dropoutFix(x))(dropout_acgt)
+
+celltype_select = layers.Flatten()(input_celltype)
+celltype_select = layers.Dense(7*4)(celltype_select)
+celltype_select = layers.Reshape((7, 4))(celltype_select)
+
+dropout_hm = layers.Dropout(0.1)(input_hm)
+hm_selected = layers.Lambda(lambda x: tf.einsum('bijk, bkl->bijl', x[0], x[1]))([dropout_hm, celltype_select])
+hm_selected = layers.Reshape((2823, 4*3))(hm_selected)
+
+core = layers.Lambda(lambda x: tf.pad(x, [[0, 0], [9, 9], [0, 0]], 'CONSTANT', constant_values=0.25))(dropout_acgt)
+core = layers.Conv1D(13, kernel_size=19, padding='valid', kernel_initializer=POLII_init, trainable=False)(core)
+#core = layers.Concatenate(axis=2)([core, input_cres, hm_selected])
+#core = layers.Concatenate(axis=2)([core, input_cres])
+core = layers.Concatenate(axis=2)([hm_selected, core])
+
+core0 = layers.Cropping1D((2703, 0))(core)
+core1 = layers.Cropping1D((2463, 120))(core)
+core2 = layers.Cropping1D((1983, 360))(core)
+core3 = layers.Cropping1D((0, 840))(core)
+
+#core0 = layers.MaxPooling1D(pool_size=2, strides=2)(core0)
+core1 = layers.MaxPooling1D(pool_size=2, strides=2)(core1)
+core2 = layers.MaxPooling1D(pool_size=6, strides=6)(core2)
+core3 = layers.MaxPooling1D(pool_size=18, strides=18)(core3)
+
+core = layers.Concatenate(axis=1)([core3, core2, core1, core0]) # 246 x 14
+core = ScaleAndBiasLayer(bias_on=True)(core)
+core = layers.ReLU()(core)
+
+z = layers.Lambda(lambda x: tf.pad(x, [[0, 0], [17, 17], [0, 0]], 'CONSTANT', constant_values=0.25))(dropout_acgt)
+z = layers.Conv1D(1072, kernel_size=35, padding='valid', kernel_initializer=motifKernelInit, trainable=False)(z)
+
+z0 = layers.Cropping1D((2703, 0))(z)
+z1 = layers.Cropping1D((2463, 120))(z)
+z2 = layers.Cropping1D((1983, 360))(z)
+z3 = layers.Cropping1D((0, 840))(z)
+
+#z0 = layers.MaxPooling1D(pool_size=2, strides=2)(z0)
+z1 = layers.MaxPooling1D(pool_size=2, strides=2)(z1)
+z2 = layers.MaxPooling1D(pool_size=6, strides=6)(z2)
+z3 = layers.MaxPooling1D(pool_size=18, strides=18)(z3)
+
+z = layers.Concatenate(axis=1)([z3, z2, z1, z0]) # 216 x 1237
+
+tfact = FactorByDiffusion()(input_tflevels, input_chr, input_tss)
+#tfact = layers.Flatten()(input_tflevels)
+tfact = layers.Dense(1072, kernel_initializer=motifMatchingInit, trainable=False)(tfact)
+tfact = ScaleAndBiasLayer(bias_on=False)(tfact)
+#tfact = layers.BatchNormalization(gamma_initializer=tf.keras.initializers.constant(value=10))(tfact)
+#tfact = layers.Dropout(0.05)(tfact)
+
+#z = layers.BatchNormalization()(z)
+z = ScaleAndBiasLayer(bias_on=True)(z)
+z = layers.ReLU()(z)
+z = layers.Multiply()([z, tfact])
+#z = layers.BatchNormalization()(z)
+
+z = layers.Dense(d_model)(z)
+z = layers.SpatialDropout1D(dropout)(z)
+
+#z = layers.Concatenate(axis=2)([z, core])
+#z = layers.Dropout(0.2)(z)
+
+for i in range(12):
+    if i <= 1:
+        ks = 7
+    elif i <= 3:
+        ks = 5
+    else:
+        ks = 3
+    z_ = z
+
+    z = layers.LayerNormalization()(z)
+    z = layers.LocallyConnected1D(32, kernel_size=1, activation='relu')(z)
+    z = layers.Dropout(dropout)(z)
+    z = layers.Add()([z, layers.Dense(32)(z_)])
+    z = layers.LayerNormalization()(z)
+    z = layers.Conv1D(d_model, kernel_size=ks, activation='relu', padding='same')(z)
+    z = layers.Dropout(dropout)(z)
+    z = layers.Add()([z, z_])
+    if i % 2 == 0:
+      z = layers.MaxPooling1D(pool_size=2, strides=2)(z)
+
+
+
+z = layers.LayerNormalization()(z)
+z = layers.Flatten()(z)
+
+z = layers.Dense(4)(z)
+
+z7 = tfp.layers.DistributionLambda(NB_cont_mixture)(z)
+model = tf.keras.Model(inputs=[input_cres, input_acgt, input_chr, input_tss, input_tflevels, input_celltype, input_hm], outputs=[z7])
