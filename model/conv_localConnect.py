@@ -254,7 +254,7 @@ BATCH_SIZE = 128
 np.random.seed(3)
 seed = np.random.randint(0, 2**32, dtype=np.uint32)
 promoterDataIdx, sampleIdx = xorshiftNextIndex(seed // 17382, seed % 17382)
-
+ 
 # Generate the indices for our validation set. This seed cannot be modified else validation & test indices will be shuffled into the training data.
 np.random.seed(0)
 valAndTestProm = np.random.choice(19746, NUM_VAL_TRANSCRIPTS+NUM_TEST_TRANSCRIPTS, replace=False)
