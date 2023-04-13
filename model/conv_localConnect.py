@@ -244,8 +244,8 @@ def generateExamples(set):
 # the model will eventually loop through all 330 million examples (except ones in test or val set),
 # regardless of what number is set here.
 NUM_TRAIN = 1280000//10
-NUM_VAL_TRANSCRIPTS = 64
-NUM_VAL_SAMPLES = 64
+NUM_VAL_TRANSCRIPTS = 256
+NUM_VAL_SAMPLES = 256
 NUM_TEST_TRANSCRIPTS = 256
 NUM_TEST_SAMPLES = 256
 BATCH_SIZE = 128
