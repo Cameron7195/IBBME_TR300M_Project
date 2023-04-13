@@ -244,8 +244,6 @@ def generateExamples(set):
 # the model will eventually loop through all 330 million examples (except ones in test or val set),
 # regardless of what number is set here.
 NUM_TRAIN = 1280000//10
-
-
 NUM_VAL_TRANSCRIPTS = 64
 NUM_VAL_SAMPLES = 64
 NUM_TEST_TRANSCRIPTS = 256
@@ -263,11 +261,10 @@ valAndTestProm = np.random.choice(19746, NUM_VAL_TRANSCRIPTS+NUM_TEST_TRANSCRIPT
 valAndTestSmpl = np.random.choice(17382, NUM_VAL_SAMPLES+NUM_TEST_SAMPLES, replace=False)
 
 val_promIdxs = valAndTestProm[0:NUM_VAL_TRANSCRIPTS]
-print(val_promIdxs.shape)
-test_promIdxs = valAndTestProm[NUM_VAL_TRANSCRIPTS:NUM_TEST_TRANSCRIPTS]
+test_promIdxs = valAndTestProm[NUM_VAL_TRANSCRIPTS:NUM_VAL_TRANSCRIPTS+NUM_TEST_TRANSCRIPTS]
 
 val_smplIdxs = valAndTestSmpl[0:NUM_VAL_SAMPLES]
-test_smplIdxs = valAndTestSmpl[NUM_VAL_SAMPLES:NUM_TEST_SAMPLES]
+test_smplIdxs = valAndTestSmpl[NUM_VAL_SAMPLES:NUM_VAL_SAMPLES+NUM_TEST_SAMPLES]
 
 ds_train = tf.data.Dataset.from_generator(generateExamples, args=[1], output_signature=((
     tf.TensorSpec(shape=(2823, 1), dtype=tf.float32),
