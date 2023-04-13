@@ -202,7 +202,6 @@ def xorshiftNextIndex(promoterDataIdx, sampleIdx):
         i ^= i << a
         i ^= i >> b
         i ^= i << c
-        # if i // 17382 < 182522:
         if i // 17382 < 19786:
             break
 
