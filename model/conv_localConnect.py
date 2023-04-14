@@ -17,10 +17,10 @@ def NB_cont_mixture(out):
     epsilon = 1E-24
     total_count_1 = tf.squeeze(tf.math.exp(out[:,0:1])) + epsilon
     logit_1 = tf.squeeze(out[:,1:2])
-    rate_1 = tf.squeeze(tf.math.softplus(out[:, 2:3])) + epsilon
+    rate_1 = tf.squeeze(tf.math.softplus(out[:, 3:4])) + epsilon
 
     return tfd.Mixture(
-    cat=tfd.Categorical(logits=tf.concat([-out[:, 3:4], out[:, 3:4]], axis=-1)),
+    cat=tfd.Categorical(logits=tf.concat([-out[:, 2:3], out[:, 2:3]], axis=-1)),
     components=[
       tfd.Exponential(rate=rate_1),
       tfd.NegativeBinomial(total_count=total_count_1, logits=logit_1, require_integer_total_count=False)
