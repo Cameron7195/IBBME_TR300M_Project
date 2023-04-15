@@ -1,5 +1,5 @@
 # IBBME_TR300M_Project
-A 300 million example transcription regression dataset for supervised learning, and a tensorflow model for it, developed with the support of the Institute of Biomaterials and Biomedical Engineering at the University of Toronto. All relevant code included here.
+A 300 million example transcription regression dataset for supervised learning, and a tensorflow model for it, developed with the support of the Institute of Biomaterials and Biomedical Engineering, and the Faculty of Electrical and Computer Engineering at the University of Toronto. All relevant code included here.
 
 There are two major folders in this Github repo.
 
